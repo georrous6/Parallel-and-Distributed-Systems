@@ -436,6 +436,7 @@ int parse_arguments(int argc, char *argv[], Options *opts, const char **filename
     opts->verbose = 0;             // Default: do not diplay information
     opts->output_filename = NULL;  // Default: no output filename
     opts->num_threads = -1;        // Default: automatically determine the number of threads
+    opts->partype = 0;             // Default: PTHREADS
 
     // Parse optional arguments
     const char *optstring = "savo:j:";
@@ -445,6 +446,9 @@ int parse_arguments(int argc, char *argv[], Options *opts, const char **filename
         {"verbose", no_argument, NULL, 'v'},
         {"output", required_argument, NULL, 'o'},
         {"threads", required_argument, NULL, 'j'},
+        {"pthreads", no_argument, NULL, 'p'},
+        {"openmp", no_argument, NULL, 'm'},
+        {"opencilk", no_argument, NULL, 'c'},
         {NULL, 0, NULL, 0}
     };
 
@@ -476,6 +480,15 @@ int parse_arguments(int argc, char *argv[], Options *opts, const char **filename
                     fprintf(stderr, "Invalid number of threads: %d\n", opts->num_threads);
                     return EXIT_FAILURE; // Return error
                 }
+                break;
+            case 'p':  // Pthreads flag
+                opts->partype = 0; // Set partype to PTHREADS
+                break;
+            case 'm':  // OpenMP flag
+                opts->partype = 1; // Set partype to OpenMP
+                break;
+            case 'c':  // OpenCilk flag
+                opts->partype = 2; // Set partype to OpenCilk
                 break;
             case '?':
                 print_usage(argv[0]);

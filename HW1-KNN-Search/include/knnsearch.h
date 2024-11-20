@@ -1,5 +1,6 @@
 #ifndef KNNSEARCH_H
 #define KNNSEARCH_H
+#include "knnsearch_approx.h"
 
 /**
  * This is the driver function for finding the exact or approximate k-nearest neighbors 
@@ -21,6 +22,6 @@
  * @note This function allocates memory for IDX and D matrices, so these matrices
  * should be freed outside the function.
  */
-int knnsearch(double* Q, const double* C, int** IDX, double** D, const int M, const int N, const int L, const int K, const int sorted, int nthreads, const int approx);
+int knnsearch(double* Q, const double* C, int** IDX, double** D, const int M, const int N, const int L, const int K, const int sorted, int nthreads, const int approx, PAR_TYPE thread_type);
 
 #endif

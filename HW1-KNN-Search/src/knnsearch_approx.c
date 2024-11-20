@@ -7,6 +7,8 @@
 #include <time.h>
 #include <string.h>
 #include <cblas.h>
+#include <omp.h>
+#include <cilk/cilk.h>
 
 
 double* perpendicular_bisector(double *p1, double *p2, int L, double *threshold) 
@@ -50,7 +52,7 @@ void swap_points(double* Q, int *mp, const int L, const int idx1, const int idx2
 }
 
 
-int ann_recursive(double *Q, int *mp, int *IDX, double *D, const int K, const int index, const int num_points, const int L, const int LEAF_SIZE) 
+int ann_recursive_openmp(double *Q, int *mp, int *IDX, double *D, const int K, const int index, const int num_points, const int L, const int LEAF_SIZE) 
 {
     if (num_points <= LEAF_SIZE || num_points == 1 || num_points <= K)
     {
@@ -111,23 +113,215 @@ int ann_recursive(double *Q, int *mp, int *IDX, double *D, const int K, const in
         left_idx++;
         right_idx--;
     }
+
+    // I want to parallelize from here
     
     const int num_points_left = left_idx - index;
     const int num_points_right = num_points + index - left_idx;
-    if (num_points_left > 0)
+        // Parallelize the recursive calls for left and right partitions
+    if (num_points_left > 0 && num_points_right > 0) 
     {
-        ann_recursive(Q, mp, IDX, D, K, index, num_points_left, L, LEAF_SIZE);
+        #pragma omp parallel
+        {
+            #pragma omp single
+            {
+                // Launch tasks for both left and right sides
+                #pragma omp task
+                {
+                    ann_recursive_openmp(Q, mp, IDX, D, K, index, num_points_left, L, LEAF_SIZE);
+                }
+                #pragma omp task
+                {
+                    ann_recursive_openmp(Q, mp, IDX, D, K, left_idx, num_points_right, L, LEAF_SIZE);
+                }
+            }
+        }
+    } 
+    else if (num_points_left > 0) 
+    {
+        ann_recursive_openmp(Q, mp, IDX, D, K, index, num_points_left, L, LEAF_SIZE);
+    } 
+    else if (num_points_right > 0) 
+    {
+        ann_recursive_openmp(Q, mp, IDX, D, K, left_idx, num_points_right, L, LEAF_SIZE);
     }
-    if (num_points_right > 0)
+
+    // To here
+
+    return EXIT_SUCCESS;
+}
+
+
+int ann_recursive_opencilk(double *Q, int *mp, int *IDX, double *D, const int K, const int index, const int num_points, const int L, const int LEAF_SIZE) 
+{
+    if (num_points <= LEAF_SIZE || num_points == 1 || num_points <= K)
     {
-        ann_recursive(Q, mp, IDX, D, K, left_idx, num_points_right, L, LEAF_SIZE);
+        // Reached a leaf. Find the exact k-nearest neighbors on this region
+        int *IDXall = (int *)malloc(sizeof(int) * num_points * num_points);
+        if (!IDXall)
+        {
+            fprintf(stderr, "ann_recursive: Error allocating memory\n");
+            return EXIT_FAILURE;
+        }
+
+        for (int i = 0; i < num_points; i++)
+        {
+            for (int j = 0; j < num_points; j++)
+            {
+                IDXall[i * num_points + j] = mp[index + j];
+            }
+        }
+
+        if (knn(Q + index * L, Q + index * L, IDX + index * K, IDXall, D + index * K, num_points, num_points, L, K))
+        {
+            free(IDXall);
+            return EXIT_FAILURE;
+        }
+
+        free(IDXall);
+        return EXIT_SUCCESS;
+    }
+
+    // Create the perpendicular bisector plane from the first two points
+    double threshold;
+    double *direction = perpendicular_bisector(Q + index * L, Q + (index + 1) * L, L, &threshold);
+    if (!direction)
+    {
+        return EXIT_FAILURE;
+    }
+
+    int left_idx = index, right_idx = index + num_points - 1;
+
+    // Partition the points according to their projection on the hyperplane
+    while (left_idx <= right_idx) 
+    {
+        double projection_left = cblas_ddot(L, direction, 1, Q + left_idx * L, 1);
+        if (projection_left < threshold) 
+        {
+            left_idx++;
+            continue;
+        }
+
+        double projection_right = cblas_ddot(L, direction, 1, Q + right_idx * L, 1);
+        if (projection_right >= threshold) 
+        {
+            right_idx--;
+            continue;
+        }
+
+        swap_points(Q, mp, L, left_idx, right_idx);
+        left_idx++;
+        right_idx--;
+    }
+
+    // Parallelize the recursive calls for left and right partitions
+    const int num_points_left = left_idx - index;
+    const int num_points_right = num_points + index - left_idx;
+
+    if (num_points_left > 0 && num_points_right > 0) 
+    {
+        // Use OpenCilk to spawn parallel tasks
+        cilk_spawn ann_recursive_opencilk(Q, mp, IDX, D, K, index, num_points_left, L, LEAF_SIZE);
+        ann_recursive_opencilk(Q, mp, IDX, D, K, left_idx, num_points_right, L, LEAF_SIZE);
+        cilk_sync;  // Ensure both tasks are complete
+    } 
+    else if (num_points_left > 0) 
+    {
+        ann_recursive_opencilk(Q, mp, IDX, D, K, index, num_points_left, L, LEAF_SIZE);
+    } 
+    else if (num_points_right > 0) 
+    {
+        ann_recursive_opencilk(Q, mp, IDX, D, K, left_idx, num_points_right, L, LEAF_SIZE);
     }
 
     return EXIT_SUCCESS;
 }
 
 
-int knnsearch_approx(double* Q, int* IDX, double* D, const int M, const int L, const int K, const int sorted, int nthreads)
+
+int ann_recursive(double *Q, int *mp,  int *IDX, double *D, const int K, const int index, const int num_points, const int L, const int LEAF_SIZE)
+{
+    if (num_points <= LEAF_SIZE || num_points == 1 || num_points <= K)
+    {
+        // Reached a leaf. Find the exact k-nearest neighbors on this region
+        int *IDXall = (int *)malloc(sizeof(int) * num_points * num_points);
+        if (!IDXall)
+        {
+            fprintf(stderr, "ann_recursive: Error allocating memory\n");
+            return EXIT_FAILURE;
+        }
+
+        for (int i = 0; i < num_points; i++)
+        {
+            for (int j = 0; j < num_points; j++)
+            {
+                IDXall[i * num_points + j] = mp[index + j];
+            }
+        }
+
+        if (knn(Q + index * L, Q + index * L, IDX + index * K, IDXall, D + index * K, num_points, num_points, L, K))
+        {
+            free(IDXall);
+            return EXIT_FAILURE;
+        }
+
+        free(IDXall);
+        return EXIT_SUCCESS;
+    }
+
+    // Create the perpendicular bisector plane from the first two points
+    double threshold;
+    double *direction = perpendicular_bisector(Q + index * L, Q + (index + 1) * L, L, &threshold);
+    if (!direction)
+    {
+        return EXIT_FAILURE;
+    }
+
+    int left_idx = index, right_idx = index + num_points - 1;
+
+    // partition the points according to their projection on the hyperplane
+    while (left_idx <= right_idx) 
+    {
+        double projection_left = cblas_ddot(L, direction, 1, Q + left_idx * L, 1);
+        if (projection_left < threshold) 
+        {
+            left_idx++;
+            continue;
+        }
+
+        double projection_right = cblas_ddot(L, direction, 1, Q + right_idx * L, 1);
+        if (projection_right >= threshold) 
+        {
+            right_idx--;
+            continue;
+        }
+
+        swap_points(Q, mp, L, left_idx, right_idx);
+        left_idx++;
+        right_idx--;
+    }
+
+    // I want to parallelize from here
+    
+    const int num_points_left = left_idx - index;
+    const int num_points_right = num_points + index - left_idx;
+    
+    if (num_points_left > 0) 
+    {
+        ann_recursive(Q, mp, IDX, D, K, index, num_points_left, L, LEAF_SIZE);
+    } 
+    if (num_points_right > 0) 
+    {
+        ann_recursive(Q, mp, IDX, D, K, left_idx, num_points_right, L, LEAF_SIZE);
+    }
+
+    // To here
+
+    return EXIT_SUCCESS;
+}
+
+
+int knnsearch_approx(double* Q, int* IDX, double* D, const int M, const int L, const int K, const int sorted, int nthreads, PAR_TYPE partype)
 {
     // Mapping vector to retrieve the initial order of points in Q
     int *mp = (int *)malloc(sizeof(int) * M);
@@ -143,9 +337,19 @@ int knnsearch_approx(double* Q, int* IDX, double* D, const int M, const int L, c
 
     for (int i = 0; i < M ; i++) mp[i] = i;
 
-    if (ann_recursive(Q, mp, temp_IDX, temp_D, K, 0, M, L, MAX_LEAF_SIZE))
+    switch (partype)
     {
-        goto cleanup;
+    case PTHREADS:
+        break;
+    case OPENMP:
+        openblas_set_num_threads(1);  // Ensure OpenBLAS uses only one thread
+        if (ann_recursive_openmp(Q, mp, temp_IDX, temp_D, K, 0, M, L, MAX_LEAF_SIZE)) goto cleanup;
+        break;
+    case OPENCILK:
+    if (ann_recursive_opencilk(Q, mp, temp_IDX, temp_D, K, 0, M, L, MAX_LEAF_SIZE)) goto cleanup;
+        break;
+    default:
+        if (ann_recursive(Q, mp, temp_IDX, temp_D, K, 0, M, L, MAX_LEAF_SIZE)) goto cleanup;
     }
 
     // Retrieve the original order of the data

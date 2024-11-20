@@ -5,7 +5,7 @@
 #include <stdlib.h>
 
 
-int knnsearch(double* Q, const double* C, int** IDX, double** D, const int M, const int N, const int L, const int K, const int sorted, int nthreads, const int approx)
+int knnsearch(double* Q, const double* C, int** IDX, double** D, const int M, const int N, const int L, const int K, const int sorted, int nthreads, const int approx, PAR_TYPE partype)
 {
     *D = (double *)malloc(M * K * sizeof(double));
     if (!(*D))
@@ -23,7 +23,7 @@ int knnsearch(double* Q, const double* C, int** IDX, double** D, const int M, co
     
     if (approx == 1)
     {
-        return knnsearch_approx(Q, *IDX, *D, M, L, K, sorted, nthreads);
+        return knnsearch_approx(Q, *IDX, *D, M, L, K, sorted, nthreads, partype);
     }
         
     return knnsearch_exact(Q, C, *IDX, *D, M, N, L, K, sorted, nthreads);

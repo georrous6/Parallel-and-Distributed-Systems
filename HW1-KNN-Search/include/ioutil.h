@@ -15,6 +15,7 @@ typedef struct {
     int verbose;             // Display information
     char *output_filename;   // Output filename
     int num_threads;         // Number of threads
+    int partype;             // Parallelization type i.e. PTHREADS, OpenMP or OpenCilk
 } Options;
 
 

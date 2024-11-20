@@ -7,7 +7,9 @@
                 "/opt/OpenBLAS/include/",
                 "${workspaceFolder}/include",
                 "/usr/local/MATLAB/R2024b/extern/include",
-                "/usr/lib/x86_64-linux-gnu/hdf5/serial/include"
+                "/usr/lib/x86_64-linux-gnu/hdf5/serial/include",
+                "/usr/lib/gcc/x86_64-linux-gnu/11/include/",
+                "/home/grous/opencilk-2.1.0-x86_64-linux-gnu-ubuntu-22.04/lib/clang/16/include"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/clang-14",

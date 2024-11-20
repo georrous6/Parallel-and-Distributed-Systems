@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
+#include <sys/time.h>
 #include "ioutil.h"
 #include "knnsearch.h"
 #include "ioutil.h"
@@ -55,11 +55,19 @@ int main(int argc, char *argv[])
         printf("Approximate Solution: %s\n", opts.approx == 1 ? "Yes" : "No");
         printf("Verbose: %s\n", opts.verbose == 1 ? "Yes" : "No");
         printf("Number of Threads: %d\n", opts.num_threads == -1 ? 1 : opts.num_threads);
+        printf("Parallelization using: ");
+        if (opts.partype == 1) 
+            printf("OpenMP\n"); 
+        else if (opts.partype == 2) 
+            printf("OpenCilk\n"); 
+        else 
+            printf("POSIX-Threads\n");
     }
 
-    clock_t start = clock();
-    if (knnsearch(Q, C, &IDX, &D, QM, CM, QN, *K, opts.sorted, opts.num_threads, opts.approx)) goto cleanup;
-    clock_t end = clock();
+    struct timeval tstart, tend;
+    gettimeofday(&tstart, NULL);
+    if (knnsearch(Q, C, &IDX, &D, QM, CM, QN, *K, opts.sorted, opts.num_threads, opts.approx, opts.partype)) goto cleanup;
+    gettimeofday(&tend, NULL);
  
     if (opts.output_filename)  // save the results in ouptut file
     {
@@ -88,7 +96,7 @@ cleanup:
         printf("\n-------------------\n");
         if (status == EXIT_SUCCESS)
         {
-            printf("Proccess finished successfully. Ellapsed time: %lf sec\n", ((double) (end - start)) / CLOCKS_PER_SEC);
+            printf("Proccess finished successfully. Ellapsed time: %ld sec\n", tend.tv_sec - tstart.tv_sec);
         }
         else
         {

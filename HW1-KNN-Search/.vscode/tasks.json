@@ -25,7 +25,8 @@
                 "-lpthread",
                 "-lmat",
                 "-lmx",
-                "-lhdf5"
+                "-lhdf5",
+                "-fopenmp"
             ],
             "options": {
                 "cwd": "${fileDirname}"

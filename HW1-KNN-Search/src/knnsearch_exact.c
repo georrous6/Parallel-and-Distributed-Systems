@@ -197,7 +197,7 @@ void executeKNNExactTask(const KNNExactTask *task)
 }
 
 
-int knnsearch_exact(const double* Q, const double* C, int* IDX, double* D, const int M, const int N, const int L, const int K, const int sorted, int nthreads)
+int knnsearch_exact(double* Q, const double* C, int* IDX, double* D, const int M, const int N, const int L, const int K, const int sorted, int nthreads)
 {
     isActive = 1;
     runningTasks = 0;

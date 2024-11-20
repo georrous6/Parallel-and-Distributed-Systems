@@ -3,6 +3,11 @@
 
 #define MAX_LEAF_SIZE 1000 // maximum number of points on a leaf
 
+typedef enum PAR_TYPE {
+    PTHREADS = 0,
+    OPENMP,
+    OPENCILK
+} PAR_TYPE;
 
 /**
  * Function to create the perpendicular bisector plane between two points
@@ -29,17 +34,19 @@ double* perpendicular_bisector(double *p1, double *p2, int L, double *threshold)
  */
 void swap_points(double* Q, int* IDX, const int L, const int idx1, const int idx2);
 
+
+int ann_recursive(double *Q, int *mp,  int *IDX, double *D, const int K, const int index, const int num_points, const int L, const int LEAF_SIZE);
+
 /**
- * Recursive function for the construction of the tree.
- * 
- * @param tree the tree
- * @param points the points of the current node
- * @param num_points the number of points to be partitioned
- * @param L the dimension of the points
- * @param LEAF_SIZE the maximum number of points to a leaf node
- * @return a leaf or an intermediate node or NULL if an error occured
+ * Parralelize tasks using OpenMP
  */
-int ann_recursive(double *C, int *mp,  int *IDX, double *D, const int K, const int index, const int num_points, const int L, const int LEAF_SIZE);
+int ann_recursive_openmp(double *Q, int *mp,  int *IDX, double *D, const int K, const int index, const int num_points, const int L, const int LEAF_SIZE);
+
+
+/**
+ * Parallelize tasks using OpenCilk
+ */
+int ann_recursive_opencilk(double *Q, int *mp, int *IDX, double *D, const int K, const int index, const int num_points, const int L, const int LEAF_SIZE);
 
 
 /**
@@ -58,7 +65,7 @@ int ann_recursive(double *C, int *mp,  int *IDX, double *D, const int K, const i
  * @note The user is responsible to pass IDX and D matrices with the appropriate
  * dimensions
  */
-int knnsearch_approx(double* Q, int* IDX, double* D, const int M, const int L, const int K, const int sorted, int nthreads);
+int knnsearch_approx(double* Q, int* IDX, double* D, const int M, const int L, const int K, const int sorted, int nthreads, PAR_TYPE partype);
 
 
 /**
